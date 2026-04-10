@@ -556,6 +556,12 @@ select.fs:focus{border-color:var(--blue2);box-shadow:0 0 0 3px rgba(37,99,235,.1
       <div class="cc"><div class="cc-title">🏘️ Top 10 เขต/อำเภอ (฿)</div><div class="ch h240"><canvas id="cDist"></canvas></div></div>
     </div>
 
+    <!-- ✈️ TRAVEL MILESTONE -->
+    <div class="st">✈️ Travel Milestone — ยอดขายพาคุณไปไหน?
+      <span class="stag tag-b" id="travelMilestoneTag">กำลังคำนวณ...</span>
+    </div>
+    <div id="travelWidget"></div>
+
   </div>
 </div>
 
@@ -1176,6 +1182,7 @@ function buildAll(){
   buildFinPage(fin,monthly);buildGeoPage(provData,distData);buildPerfPage(totalRev);
   // rebuild customer page if currently active
   if(document.getElementById('page-cust')?.style.display!=='none')buildCustPage();
+  buildTravelMilestone();
 }
 
 // ════════════════════════════════════════════
@@ -3244,6 +3251,103 @@ function openCustModalByKey(username){
       </tbody>
     </table></div>`;
   showMod();
+}
+
+// ════════════════════════════════════════════
+//  TRAVEL MILESTONE
+// ════════════════════════════════════════════
+function buildTravelMilestone(){
+  const el=document.getElementById('travelWidget');
+  if(!el)return;
+
+  const fin=getFinTotals();
+  const successRows=ordersFiltered.filter(r=>/สำเร็จ|complete|delivered|ได้รับ/i.test(gv(r,OF.status)||''));
+  const successRev=successRows.reduce((s,r)=>{const q=gn(r,OF.qty)||1;return s+(gn(r,OF.totalPaid)||((gn(r,OF.dealPrice)||gn(r,OF.origPrice))*q));},0);
+  const successDisc=successRows.reduce((s,r)=>s+(gn(r,OF.sellerDisc)||0),0);
+  const adminComm=parseFloat(document.getElementById('finRow')?.dataset?.adminComm||0);
+  const netProfit=Math.max(0,successRev-successDisc-fin.commission-fin.txFee-fin.shipping-adminComm);
+
+  const destinations=[
+    {budget:10000,  flag:'🏕️', dest:'แพเชี่ยวหลาน สุราษฎร์ธานี',    desc:'นอนดูดาวกลางน้ำ'},
+    {budget:20000,  flag:'🇻🇳', dest:'ดานัง - บานาฮิลล์ เวียดนาม',    desc:'ปราสาทฝรั่งเศส สะพานมือ'},
+    {budget:30000,  flag:'🇸🇬', dest:'สิงคโปร์ Universal Studios',      desc:'Marina Bay Sands + ปูยักษ์'},
+    {budget:40000,  flag:'🇭🇰', dest:'ฮ่องกง ไหว้พระเสริมดวง',         desc:'ช้อปปิ้ง Gadget มงก๊ก'},
+    {budget:50000,  flag:'🇯🇵', dest:'โตเกียว ญี่ปุ่น',                desc:'ฟูจิ ซูชิสายพาน Akihabara'},
+    {budget:100000, flag:'🏰', dest:'ยุโรปตะวันออก ปราก-เวียนนา',     desc:'เมืองเก่าโรแมนติก 7-10 วัน'},
+    {budget:200000, flag:'🇮🇸', dest:'ตามล่าแสงเหนือ ไอซ์แลนด์',      desc:'Blue Lagoon + ขับรถรอบเกาะ'},
+    {budget:300000, flag:'🇨🇭', dest:'สวิสเซอร์แลนด์ Glacier Express', desc:'รถไฟชมแอลป์ พักเมืองหรู'},
+    {budget:400000, flag:'🇺🇸', dest:'อเมริกา Road Trip Route 66',     desc:'บินข้ามโลก ขับจากฝั่งตะวันออก'},
+    {budget:500000, flag:'🐧', dest:'ล่องเรือ Antarctica',              desc:'ดูเพนกวินขั้วโลกใต้'},
+    {budget:600000, flag:'✈️', dest:'Business Class Round the World',  desc:'บินวนรอบโลก 3 ทวีป'},
+    {budget:700000, flag:'🦁', dest:'แอฟริกาใต้ Safari 5 ดาว',         desc:'Big Five ใกล้ชิด'},
+    {budget:800000, flag:'🏝️', dest:'มัลดีฟส์ Private Villa',          desc:'Overwater Suite + Butler ส่วนตัว'},
+    {budget:900000, flag:'⚽', dest:'UEFA Champions League VIP Box',   desc:'ดูบอลนัดชิงที่ยุโรป'},
+    {budget:1000000,flag:'🛥️', dest:'ดูไบ ล่องเรือยอร์ชส่วนตัว',       desc:'Burj Al Arab 7 ดาว + Supercar'},
+  ];
+
+  const maxBudget=1000000;
+  const pct=Math.min(100,(netProfit/maxBudget*100));
+  const reached=destinations.filter(d=>netProfit>=d.budget);
+  const nextDest=destinations.find(d=>netProfit<d.budget);
+  const currentDest=reached[reached.length-1];
+
+  const tag=document.getElementById('travelMilestoneTag');
+  if(tag)tag.textContent='กำไรสุทธิ ฿'+fmt(netProfit);
+
+  const barColor=pct<20?'linear-gradient(90deg,#22c55e,#4ade80)':
+                  pct<50?'linear-gradient(90deg,#22c55e,#3b82f6)':
+                  pct<80?'linear-gradient(90deg,#3b82f6,#8b5cf6)':
+                         'linear-gradient(90deg,#8b5cf6,#f59e0b,#ef4444)';
+
+  el.innerHTML=`
+  <div class="travel-wrap">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+      <div>
+        <div style="font-size:15px;font-weight:700;color:var(--text);line-height:1.4">
+          ${currentDest?'🎉 ระดับปัจจุบัน: <span style="color:var(--green)">' + currentDest.flag + ' ' + currentDest.dest + '</span>':'🚀 มาเริ่มออกเดินทางกัน!'}
+        </div>
+        ${nextDest?'<div style="font-size:12px;color:var(--text3);margin-top:4px">🎯 เป้าถัดไป: <b>' + nextDest.flag + ' ' + nextDest.dest + '</b> — ต้องการอีก <span style="color:var(--blue2);font-family:var(--mono);font-weight:700">฿' + fmt(nextDest.budget-netProfit) + '</span></div>':'<div style="font-size:13px;color:var(--green);font-weight:700;margin-top:4px">🏆 ถึงระดับสูงสุดแล้ว! ล่องเรือยอร์ชรอคุณอยู่ครับ</div>'}
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-size:26px;font-weight:800;font-family:var(--mono);color:var(--green);line-height:1">฿${fmt(netProfit)}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">กำไรสุทธิ (หลังหักทุกค่าใช้จ่าย)</div>
+      </div>
+    </div>
+
+    <!-- Power Bar -->
+    <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text3);margin-bottom:3px">
+      <span>฿0</span><span>฿250K</span><span>฿500K</span><span>฿750K</span><span>฿1M 🛥️</span>
+    </div>
+    <div class="travel-powerbar">
+      <div class="travel-fill" data-pct="${pct.toFixed(0)}%" style="width:${Math.max(2,pct)}%;background:${barColor}"></div>
+      ${destinations.map(d=>`<div style="position:absolute;top:0;bottom:0;left:${(d.budget/maxBudget*100).toFixed(2)}%;width:1.5px;background:rgba(255,255,255,.35)"></div>`).join('')}
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:10px;margin-top:6px;margin-bottom:16px">
+      <span style="color:var(--green)">🟢 ฿10K เชี่ยวหลาน</span>
+      <span style="color:var(--blue2)">🔵 ฿100K ยุโรป</span>
+      <span style="color:#8b5cf6">🟣 ฿500K Antarctica</span>
+      <span style="color:#ef4444">🔴 ฿1M ดูไบ</span>
+    </div>
+
+    <!-- Destination cards -->
+    <div class="travel-milestone-grid">
+      ${destinations.map(d=>{
+        const isReached=netProfit>=d.budget;
+        const isNext=d===nextDest;
+        const cls=isReached?'tm-reached':isNext?'tm-next':'tm-locked';
+        const bg=isReached?'#f0fdf4':isNext?'#eff6ff':'var(--bg2)';
+        return`<div class="tm-card ${cls}" style="background:${bg}">
+          ${isReached?'<span class="tm-badge" style="background:#dcfce7;color:var(--green)">✅ ถึงแล้ว</span>':''}
+          ${isNext?'<span class="tm-badge" style="background:var(--blue-bg);color:var(--blue2)">🎯 ถัดไป</span>':''}
+          <div class="tm-flag">${d.flag}</div>
+          <div class="tm-dest">${d.dest}</div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;line-height:1.3">${d.desc}</div>
+          <div class="tm-budget" style="color:${isReached?'var(--green)':isNext?'var(--blue2)':'var(--text4)'}">฿${fmt(d.budget)}</div>
+          ${!isReached&&!isNext?'<div style="font-size:9px;color:var(--text4);margin-top:1px">อีก ฿'+fmt(d.budget-netProfit)+'</div>':''}
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
 }
 
 // ════════════════════════════════════════════
