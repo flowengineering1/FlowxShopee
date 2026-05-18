@@ -100,7 +100,11 @@ header{
 .sdot.go{background:#f59e0b;animation:bk .7s ease infinite}
 .sdot.err{background:#ef4444}
 @keyframes bk{0%,100%{opacity:1}50%{opacity:.3}}
-.upd{font-size:10px;color:var(--text3);font-family:var(--mono);white-space:nowrap}
+.upd{font-size:10px;color:var(--text3);font-family:var(--mono);white-space:nowrap;display:flex;flex-direction:column;align-items:flex-end;gap:1px;line-height:1.3}
+.upd .upd-sync{color:var(--text3)}
+.upd .upd-latest{color:var(--blue2);font-weight:600;display:flex;align-items:center;gap:4px}
+.upd .upd-latest .upd-oid{color:var(--text2);cursor:pointer;border-bottom:1px dotted var(--border2);transition:color .15s}
+.upd .upd-latest .upd-oid:hover{color:var(--blue2)}
 
 /* ── Period quick-select ── */
 .period-bar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex:1}
@@ -403,6 +407,13 @@ select.fs:focus{border-color:var(--blue2);box-shadow:0 0 0 3px rgba(37,99,235,.1
   .date-range{padding:4px 8px}
   .date-range input[type=date]{min-width:82px;font-size:11px}
   .dr-badge{font-size:10px}
+  /* Compact upd on mobile */
+  .upd{font-size:9px;gap:0;line-height:1.25}
+  .upd .upd-latest{font-size:9px}
+}
+@media(max-width:480px){
+  /* Hide latest-order line on very small screens to save space */
+  .upd .upd-latest{display:none}
 }
 @media(max-width:420px){
   .fin-row{grid-template-columns:repeat(2,1fr)}
@@ -426,7 +437,7 @@ select.fs:focus{border-color:var(--blue2);box-shadow:0 0 0 3px rgba(37,99,235,.1
     <div class="ds-chip"><div class="d" style="background:#f97316"></div><span id="chip1">Orders: —</span></div>
   </div>
   <div class="hdr-right">
-    <span class="upd" id="updTxt"></span>
+    <div class="upd" id="updTxt"></div>
     <button class="sync-btn" onclick="loadAll()"><div class="sdot" id="sdot"></div>🔄 Refresh</button>
   </div>
 </header>
@@ -749,8 +760,7 @@ function getPS(id){return parseInt(document.getElementById(id)?.value||'50')||50
 //  INIT
 // ════════════════════════════════════════════
 window.onload=()=>{
-  document.getElementById('updTxt').textContent=
-    new Date().toLocaleDateString('th-TH',{year:'numeric',month:'short',day:'numeric'});
+  document.getElementById('updTxt').innerHTML='<span class="upd-sync">⏳ กำลังโหลด...</span>';
   loadAll();
 };
 
@@ -771,7 +781,30 @@ async function loadAll(){
     // Then build everything (charts need visible canvas)
     requestAnimationFrame(()=>requestAnimationFrame(()=>buildAll()));
     const ts=new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
-    document.getElementById('updTxt').textContent='อัปเดต '+ts;
+
+    // ── หา Order ล่าสุด (จากเวลาที่ทำการสั่งซื้อ) ──
+    let latestInfo='';
+    if(ordersRaw.length && OF.orderTime){
+      let latestRow=null, latestTs=-Infinity;
+      ordersRaw.forEach(r=>{
+        const t=gv(r,OF.orderTime)||gv(r,OF.orderDate)||'';
+        const ms=new Date(t).getTime();
+        if(!isNaN(ms) && ms>latestTs){latestTs=ms; latestRow=r;}
+      });
+      if(latestRow){
+        const oid=gv(latestRow,OF.orderId)||'—';
+        const tRaw=gv(latestRow,OF.orderTime)||gv(latestRow,OF.orderDate)||'';
+        // แสดงรูปแบบ "30 เม.ย. 2026 14:32"
+        const d=new Date(tRaw);
+        let tFmt=tRaw;
+        if(!isNaN(d.getTime())){
+          tFmt=d.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'})+' '+d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+        }
+        latestInfo=`<span class="upd-latest" title="คลิก Order ID เพื่อคัดลอก">📦 ล่าสุด: ${tFmt} · <span class="upd-oid" onclick="copyToClipboard('${oid.replace(/'/g,"\\'")}')" title="คลิกเพื่อคัดลอก: ${oid}">${oid}</span></span>`;
+      }
+    }
+    document.getElementById('updTxt').innerHTML=
+      `<span class="upd-sync">🔄 อัปเดต ${ts}</span>`+latestInfo;
     ['chip1','af1'].forEach(id=>document.getElementById(id).textContent='Orders: '+fmtN(ordersRaw.length)+' rows');
     document.getElementById('nb-ord').textContent=fmtN(ordersRaw.length);
     // nb-views removed
@@ -787,15 +820,54 @@ function ldg(on,t){document.getElementById('ldgDiv').style.display=on?'flex':'no
 //  CSV
 // ════════════════════════════════════════════
 async function fetchCSV(url){const r=await fetch(url);if(!r.ok)throw new Error('HTTP '+r.status);return r.text();}
+
+// Parser ที่รองรับ newline ภายในเซลล์ที่ครอบด้วย " "
+// (จำเป็นเพราะคอลัมน์ "ที่อยู่จัดส่ง" ของ Shopee มี \n ในตัว
+//  ทำให้ split('\n') ตรงๆ จะตัดบรรทัดผิด ข้อมูลเลื่อนคอลัมน์ทั้งหมด)
 function parseCSV(txt,type){
   if(!txt)return;
-  const lines=txt.split('\n').filter(l=>l.trim());
-  if(!lines.length)return;
-  const hdrs=csvLine(lines[0]);const rows=[];
-  for(let i=1;i<lines.length;i++){const v=csvLine(lines[i]);if(v.filter(x=>x).length<2)continue;const o={};hdrs.forEach((h,j)=>o[h]=(v[j]||'').trim());rows.push(o);}
-  ordersRaw=rows;ordHdrs=hdrs;ordersFiltered=rows;
+  // strip BOM
+  if(txt.charCodeAt(0)===0xFEFF) txt=txt.slice(1);
+  // normalize line endings
+  txt=txt.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+
+  const rows=[];
+  let row=[], cell='', inQ=false;
+  for(let i=0;i<txt.length;i++){
+    const ch=txt[i];
+    if(inQ){
+      if(ch==='"'){
+        if(txt[i+1]==='"'){cell+='"';i++;}   // escaped quote ""
+        else inQ=false;
+      } else {
+        cell+=ch;
+      }
+    } else {
+      if(ch==='"'){inQ=true;}
+      else if(ch===','){row.push(cell);cell='';}
+      else if(ch==='\n'){row.push(cell);cell='';rows.push(row);row=[];}
+      else {cell+=ch;}
+    }
+  }
+  // ตัวสุดท้าย
+  if(cell.length||row.length){row.push(cell);rows.push(row);}
+
+  // กรอง row ว่าง
+  const cleaned=rows.filter(r=>r.some(x=>(x||'').trim()!==''));
+  if(!cleaned.length)return;
+
+  const hdrs=cleaned[0].map(h=>(h||'').trim());
+  const out=[];
+  for(let i=1;i<cleaned.length;i++){
+    const v=cleaned[i];
+    if(v.filter(x=>(x||'').trim()).length<2)continue;
+    const o={};
+    hdrs.forEach((h,j)=>o[h]=(v[j]||'').trim());
+    out.push(o);
+  }
+  ordersRaw=out;ordHdrs=hdrs;ordersFiltered=out;
 }
-function csvLine(line){const r=[];let c='',q=false;for(const ch of line){if(ch==='"'){q=!q;continue;}if(ch===','&&!q){r.push(c);c='';continue;}c+=ch;}r.push(c);return r;}
+function csvLine(line){const r=[];let c='',q=false;for(const ch of line){if(ch==='"'){q=!q;continue;}if(ch===','&&!q){r.push(c);c='';continue;}c+=ch;}r.push(c);return r;} // (legacy, ไม่ใช้แล้ว - parseCSV ใหม่รองรับ multiline)
 
 // ════════════════════════════════════════════
 //  FIELD DETECTION
@@ -1496,7 +1568,8 @@ function buildFinRow(fin,totalRev){
     const{bg,c}=statusColor(s);
     const pctOrd=orders?(v.cnt/orders*100).toFixed(0):0;
     const pctRev=(v.rev/totalStatusRev*100).toFixed(0);
-    return`<div style="margin-bottom:8px">
+    const sEsc=s.replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    return`<div onclick="showStatusOrders('${sEsc}')" style="margin-bottom:8px;padding:6px 8px;border-radius:8px;cursor:pointer;transition:background .15s" onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background='transparent'" title="คลิกเพื่อดูรายการคำสั่งซื้อในสถานะนี้">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
         <span style="font-size:10px;background:${bg};color:${c};padding:2px 8px;border-radius:10px;font-family:var(--mono);font-weight:600;flex-shrink:0">${s}</span>
         <div style="flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden">
@@ -1504,9 +1577,10 @@ function buildFinRow(fin,totalRev){
         </div>
         <span style="font-size:12px;font-family:var(--mono);color:${c};font-weight:700;flex-shrink:0;min-width:72px;text-align:right">฿${fmt(v.rev)}</span>
       </div>
-      <div style="display:flex;justify-content:flex-end;gap:10px;font-size:10px;color:var(--text3);font-family:var(--mono)">
+      <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;font-size:10px;color:var(--text3);font-family:var(--mono)">
         <span>${fmtN(v.cnt)} orders (${pctOrd}%)</span>
         <span style="color:${c};font-weight:600">${pctRev}% ของยอดขาย</span>
+        <span style="color:${c};font-weight:700;font-size:11px">→</span>
       </div>
     </div>`;
   }).join('');
@@ -1639,6 +1713,104 @@ function buildHydGrid(hydStats){
       <div><div class="hyd-name">${h.label}</div><div class="hyd-cnt">${fmtN(h.orders)} orders · คลิกดูรายการ →</div></div>
       <div class="hyd-val">฿${fmt(h.rev)}</div>
     </div>`).join(''):'';
+}
+
+// ── แสดงรายการ orders ตามสถานะ (คลิกจาก "📊 สถานะคำสั่งซื้อ") ──
+function showStatusOrders(statusName){
+  if(!OF.status){alert('ไม่พบคอลัมน์สถานะใน Sheet');return;}
+  const rows=ordersFiltered.filter(r=>(gv(r,OF.status)||'ไม่ระบุ')===statusName);
+  if(!rows.length){alert('ไม่พบคำสั่งซื้อในสถานะนี้');return;}
+
+  // คำนวณ stats
+  const totalRev=rows.reduce((s,r)=>{
+    const q=gn(r,OF.qty)||1;
+    return s+(gn(r,OF.totalPaid)||((gn(r,OF.dealPrice)||gn(r,OF.origPrice))*q));
+  },0);
+  const uniqOrders=new Set(rows.map(r=>gv(r,OF.orderId)||'')).size;
+  const totalQty=rows.reduce((s,r)=>s+(gn(r,OF.qty)||1),0);
+
+  // สีตามสถานะ
+  function statusColorLocal(s){
+    if(/สำเร็จ|complete|delivered|ได้รับ/i.test(s))return{bg:'var(--green-lt)',c:'var(--green)'};
+    if(/ยกเลิก|cancel/i.test(s))return{bg:'var(--red-lt)',c:'var(--red)'};
+    if(/จัดส่ง|ship|transit|ส่ง/i.test(s))return{bg:'var(--teal-lt)',c:'var(--teal)'};
+    if(/รอ|pending|process|กำลัง/i.test(s))return{bg:'var(--yellow-lt)',c:'var(--yellow)'};
+    if(/คืน|return|refund/i.test(s))return{bg:'var(--purple-lt)',c:'var(--purple)'};
+    return{bg:'var(--blue-lt)',c:'var(--blue2)'};
+  }
+  const{bg:sBg,c:sCol}=statusColorLocal(statusName);
+
+  // เรียงตามเวลาล่าสุดก่อน
+  rows.sort((a,b)=>{
+    const ta=new Date(gv(a,OF.orderTime)||gv(a,OF.orderDate)||0).getTime();
+    const tb=new Date(gv(b,OF.orderTime)||gv(b,OF.orderDate)||0).getTime();
+    return tb-ta;
+  });
+
+  // สร้างตาราง
+  const rowsHTML=rows.map((r,i)=>{
+    const oid=gv(r,OF.orderId)||'—';
+    const tm=gv(r,OF.orderTime)||gv(r,OF.orderDate)||'—';
+    const tmShort=tm.length>16?tm.substring(0,16):tm;
+    const pn=gv(r,OF.prodName)||'—';
+    const vr=gv(r,OF.variation)||'';
+    const qty=gn(r,OF.qty)||1;
+    const q=qty;
+    const paid=gn(r,OF.totalPaid)||((gn(r,OF.dealPrice)||gn(r,OF.origPrice))*q);
+    const prov=gv(r,OF.province)||'—';
+    return`<tr>
+      <td style="color:var(--text4);font-family:var(--mono);font-size:10px">${i+1}</td>
+      <td style="font-family:var(--mono);font-size:10px;color:var(--blue2)">${oid}</td>
+      <td style="font-family:var(--mono);font-size:10px;color:var(--text3)">${tmShort}</td>
+      <td title="${pn.replace(/"/g,'&quot;')}" style="font-size:11px">${pn.substring(0,38)}${pn.length>38?'…':''}${vr?`<div style="font-size:9px;color:var(--text3);margin-top:2px">${vr.substring(0,30)}</div>`:''}</td>
+      <td style="font-family:var(--mono);text-align:right">${fmtN(qty)}</td>
+      <td style="font-family:var(--mono);text-align:right;color:var(--blue2);font-weight:600">฿${fmt(paid)}</td>
+      <td style="font-size:10px;color:var(--text3)">${prov}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('mTitle').innerHTML=`📋 รายการคำสั่งซื้อ — <span style="background:${sBg};color:${sCol};padding:2px 10px;border-radius:10px;font-size:13px;font-family:var(--mono)">${statusName}</span>`;
+  document.getElementById('mBody').innerHTML=`
+    <div class="sr">
+      <div class="sb"><div class="sl">จำนวนออร์เดอร์</div><div class="sv" style="color:${sCol}">${fmtN(uniqOrders)}</div></div>
+      <div class="sb"><div class="sl">จำนวนรายการ (rows)</div><div class="sv">${fmtN(rows.length)}</div></div>
+      <div class="sb"><div class="sl">จำนวนชิ้นรวม</div><div class="sv">${fmtN(totalQty)} ชิ้น</div></div>
+      <div class="sb"><div class="sl">ยอดขายรวม</div><div class="sv" style="color:var(--blue2)">฿${fmt(totalRev)}</div></div>
+    </div>
+    <div style="margin:10px 0 6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <div class="srch" style="flex:1;min-width:200px"><span style="color:var(--text4)">🔍</span><input type="text" id="srchStatusOrd" placeholder="ค้นหา Order ID / สินค้า / จังหวัด..." oninput="filterStatusModal(this.value)"></div>
+      <div style="font-size:10px;color:var(--text3);font-family:var(--mono)" id="statusModalCount">${rows.length} rows</div>
+    </div>
+    <div class="ts" style="max-height:420px;overflow-y:auto">
+      <table style="width:100%">
+        <thead><tr>
+          <th style="font-size:10px">#</th>
+          <th style="font-size:10px">Order ID</th>
+          <th style="font-size:10px">วันที่สั่ง</th>
+          <th style="font-size:10px">สินค้า</th>
+          <th style="font-size:10px;text-align:right">จำนวน</th>
+          <th style="font-size:10px;text-align:right">ยอดชำระ</th>
+          <th style="font-size:10px">จังหวัด</th>
+        </tr></thead>
+        <tbody id="statusModalTbody">${rowsHTML}</tbody>
+      </table>
+    </div>`;
+  showMod();
+}
+
+function filterStatusModal(q){
+  q=(q||'').toLowerCase().trim();
+  const tbody=document.getElementById('statusModalTbody');
+  if(!tbody)return;
+  let visible=0;
+  Array.from(tbody.querySelectorAll('tr')).forEach(tr=>{
+    const txt=tr.textContent.toLowerCase();
+    const show=!q||txt.includes(q);
+    tr.style.display=show?'':'none';
+    if(show)visible++;
+  });
+  const cnt=document.getElementById('statusModalCount');
+  if(cnt)cnt.textContent=visible+' rows';
 }
 
 function showHydDetail(keyOrLabel){
@@ -2709,6 +2881,27 @@ function filterByGroup(gkey){
 
 function showMod(){document.getElementById('mbg').classList.add('on')}
 function closeMod(){document.getElementById('mbg').classList.remove('on')}
+
+function copyToClipboard(txt){
+  if(!txt)return;
+  // ลอง modern API ก่อน, fallback ไป textarea
+  const fallback=()=>{
+    const ta=document.createElement('textarea');
+    ta.value=txt;ta.style.position='fixed';ta.style.opacity='0';
+    document.body.appendChild(ta);ta.select();
+    try{document.execCommand('copy');}catch(_){}
+    document.body.removeChild(ta);
+  };
+  if(navigator.clipboard && window.isSecureContext){
+    navigator.clipboard.writeText(txt).catch(fallback);
+  }else{fallback();}
+  // toast แจ้งเตือน
+  const t=document.createElement('div');
+  t.textContent='✓ คัดลอก '+txt+' แล้ว';
+  t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:8px 18px;border-radius:20px;font-size:12px;font-family:var(--mono);box-shadow:0 4px 16px rgba(21,128,61,.3);z-index:9999;animation:fadeInUp .2s';
+  document.body.appendChild(t);
+  setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(()=>t.remove(),300);},1500);
+}
 
 // ════════════════════════════════════════════
 //  PAGINATION
