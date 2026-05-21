@@ -493,7 +493,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v4.20 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v4.21 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -1581,7 +1581,7 @@ function closeSh(id,e){if(e&&e.target!==document.getElementById('sh-'+id))return
 // DATA
 // ============================================================
 async function loadAll(){
-  await Promise.all([loadEmps(),loadOffices(),loadLeaves()]);
+  await Promise.all([loadEmps(),loadOffices(),loadLeaves(),loadOT()]);
 }
 async function loadEmps(){
   let query = db.from('employees').select('*').eq('is_active',true)
@@ -5234,13 +5234,16 @@ async function loadOT(){
 }
 
 function updateOTBadge(){
-  const pend = otRequests.filter(o=>o.status==='pending');
-  const badge = document.getElementById('d-ot-badge');
-  const navBadge = document.getElementById('d-ot-badge');
-  [badge, navBadge].forEach(el=>{
+  const pend = otRequests.filter(o=>o.status==='pending' && (
+    // HR/owner เห็นทุก pending / dept_head เห็นแผนกตัวเอง / employee ไม่เห็น badge
+    can('approve_leave') ? true : false
+  ));
+  // อัปเดต badge ใน nav (desktop + mobile)
+  ['d-ot-badge','m-ot-badge'].forEach(id => {
+    const el = document.getElementById(id);
     if(!el) return;
     el.textContent = pend.length;
-    el.style.display = pend.length > 0 ? 'inline' : 'none';
+    el.style.display = pend.length > 0 ? 'inline-flex' : 'none';
   });
   const cnt = document.getElementById('d-ot-pend-count');
   if(cnt) cnt.textContent = pend.length;
