@@ -96,6 +96,11 @@ header{
 .ds-chip{display:flex;align-items:center;gap:5px;font-size:11px;font-family:var(--mono);padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text3)}
 .ds-chip .d{width:6px;height:6px;border-radius:50%}
 .hdr-right{display:flex;align-items:center;gap:8px}
+/* วันที่ข้อมูลล่าสุด มุมขวาบน */
+.asof{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15;padding:4px 12px;border-radius:10px;background:#fff7ed;border:2px solid #fdba74;white-space:nowrap;flex-shrink:0}
+.asof-l{font-size:11px;color:#9a3412;font-weight:600}
+.asof-v{font-size:20px;font-weight:800;color:#c2410c}
+@media(max-width:768px){.asof{padding:2px 8px}.asof-l{font-size:9px}.asof-v{font-size:15px}}
 /* กันล้นขอบบนจอแคบ */
 .m-cards{display:flex;flex-direction:column;gap:8px;padding:8px;max-height:none!important;overflow:visible!important}
 .m-card{background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:10px 12px}
@@ -105,6 +110,10 @@ header{
 .m-v{text-align:right;word-break:break-word;min-width:0}
 .m-v input{max-width:100%;width:100%!important}
 .m-full{grid-column:1/-1}
+.m-comm{display:flex;justify-content:space-between;align-items:baseline;background:#eef2ff;border-radius:10px;padding:8px 12px;margin:2px 0 8px}
+.m-comm span{color:#4338ca;font-weight:600;font-size:13px}
+.m-comm b{color:#4338ca;font-size:22px;font-family:var(--mono)}
+.m-total{border:2px solid #6366f1;background:#f5f7ff}
 .m-long{margin-top:2px;line-height:1.55}
 .m-card *{white-space:normal!important;max-width:100%}
 .m-card-t span[title],.m-long span[title]{overflow:visible}
@@ -611,6 +620,7 @@ select.fs:focus{border-color:var(--blue2);box-shadow:0 0 0 3px rgba(37,99,235,.1
   </div>
   <div class="hdr-right">
     <div class="upd" id="updTxt"></div>
+    <div class="asof" id="dataAsOf" title="วันที่ของออร์เดอร์ล่าสุดในข้อมูล"><span class="asof-l">ข้อมูลล่าสุด</span><span class="asof-v" id="dataAsOfV">-</span></div>
     <div style="display:flex;gap:2px;align-items:center;background:var(--bg2,#f1f5f9);border-radius:8px;padding:2px" title="ขนาดตัวหนังสือ">
       <button class="zm-btn" data-z="1" onclick="uiZoom(1)" style="font-size:12px">ก</button><button class="zm-btn" data-z="1.5" onclick="uiZoom(1.5)" style="font-size:15px">ก</button><button class="zm-btn" data-z="2" onclick="uiZoom(2)" style="font-size:18px">ก</button>
     </div>
@@ -935,7 +945,7 @@ window.onload=()=>{
   uiZoom(z);
   let rt,mob=(window.innerWidth||1000)<640;
   window.addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{uiZoom(_uiZoom);
-    const m=(window.innerWidth||1000)<640;if(m!==mob){mob=m;if(typeof _sumData!=='undefined'&&_sumData&&document.getElementById('sumTabBody'))renderSumTab();}},200);});
+    const m=(window.innerWidth||1000)<640;if(m!==mob){mob=m;if(document.getElementById('xlTabBody'))renderXlTab();if(typeof _sumData!=='undefined'&&_sumData&&document.getElementById('sumTabBody'))renderSumTab();}},200);});
 };
 
 async function loadAll(){
@@ -3967,7 +3977,17 @@ function xlMonthLabel(k){
   return moTh[parseInt(p[1])-1]+' '+(parseInt(p[0])+543).toString().slice(-2);
 }
 
+// วันที่ของออร์เดอร์ล่าสุดในข้อมูล แสดงมุมขวาบน
+function xlUpdateAsOf(){
+  const v=document.getElementById('dataAsOfV');if(!v)return;
+  let mx='';_xlFiles.forEach(f=>f.rows.forEach(r=>{const d=((r.doneAt||'')>(r.ordAt||'')?r.doneAt:r.ordAt)||'';if(d>mx)mx=d;}));
+  if(!mx){v.textContent='-';return;}
+  const moTh=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  v.textContent=`${+mx.substring(8,10)} ${moTh[+mx.substring(5,7)-1]} ${String(+mx.substring(0,4)+543).slice(-2)}`;
+  document.getElementById('dataAsOf').title='ออร์เดอร์ล่าสุดในข้อมูล: '+mx;
+}
 function buildXlPage(){
+  xlUpdateAsOf();
   const el=document.getElementById('xlContent');
   if(!el)return;
   const rate=_xlRate/100;
@@ -4137,6 +4157,28 @@ function renderXlTab(){
     </tbody></table></div>`;
   }
   body.innerHTML=html;
+  if(sumIsMobile())xlCardify(body);
+}
+// มือถือ: เปลี่ยนตารางเป็นการ์ดทีละแถว ค่าคอม Sales แสดงตัวใหญ่เด่น
+function xlCardify(root){
+  root.querySelectorAll('table').forEach(tb=>{
+    const head=[...tb.querySelectorAll('thead th')].map(th=>th.textContent.trim());
+    const isComm=h=>/^ค่าคอม(?!มิชชั่น)/.test(h);
+    const rows=[...tb.querySelectorAll('tbody tr')];
+    const skip=head[0]==='#'?2:1;
+    const html=rows.map(tr=>{
+      const td=[...tr.children].map(c=>c.innerHTML);
+      const total=/^\s*รวม\s*$/.test(tr.children[0]?.textContent||'');
+      const title=skip===2?`${td[0]}. ${td[1]}`:td[0];
+      const comm=head.findIndex(isComm);
+      const big=comm>=skip&&td[comm]!=null?`<div class="m-comm"><span>${head[comm]}</span><b>${td[comm]}</b></div>`:'';
+      const rest=td.map((c,i)=>i<skip||i===comm?'':`<div class="m-k">${head[i]||''}</div><div class="m-v">${c}</div>`).join('');
+      return `<div class="m-card${total?' m-total':''}"><div class="m-card-t">${title}</div>${big}<div class="m-card-g">${rest}</div></div>`;
+    }).join('');
+    const wrap=tb.closest('.ts')||tb;
+    const d=document.createElement('div');d.className='m-cards';d.innerHTML=html;
+    wrap.replaceWith(d);
+  });
 }
 
 function xlExport(){
