@@ -96,6 +96,34 @@ header{
 .ds-chip{display:flex;align-items:center;gap:5px;font-size:11px;font-family:var(--mono);padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text3)}
 .ds-chip .d{width:6px;height:6px;border-radius:50%}
 .hdr-right{display:flex;align-items:center;gap:8px}
+/* กันล้นขอบบนจอแคบ */
+.m-cards{display:flex;flex-direction:column;gap:8px;padding:8px;max-height:none!important;overflow:visible!important}
+.m-card{background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:10px 12px}
+.m-card-t{font-weight:700;font-size:14px;margin-bottom:6px;word-break:break-word}
+.m-card-g{display:grid;grid-template-columns:minmax(90px,auto) 1fr;gap:4px 10px;font-size:13px;align-items:center}
+.m-k{color:var(--text3);font-size:12px}
+.m-v{text-align:right;word-break:break-word;min-width:0}
+.m-v input{max-width:100%;width:100%!important}
+.m-full{grid-column:1/-1}
+.m-long{margin-top:2px;line-height:1.55}
+.m-card *{white-space:normal!important;max-width:100%}
+.m-card-t span[title],.m-long span[title]{overflow:visible}
+.m-full .xl-tab-btn{width:100%;justify-content:center}
+.cg>*,.xl-kpi-grid>*,.cc{min-width:0}
+#xlTabBody{overflow-x:auto}
+#xlTabBody>table{min-width:100%}
+.ts td:first-child,.ts th:first-child,#xlTabBody td:first-child,#xlTabBody th:first-child{position:sticky;left:0;z-index:1}
+.ts td:first-child,#xlTabBody td:first-child{background:var(--card)}
+@media(max-width:768px){
+  header{gap:6px}
+  .hdr-right{gap:4px;flex-shrink:0}
+  .hdr-right .upd{display:none}
+  .zm-btn{padding:2px 6px}
+  .sync-btn .rf-txt{display:none}
+  .sync-btn{padding:7px 10px!important}
+  .logo-txt{display:none}
+  #sumModal>div{padding:14px 12px!important}
+}
 .zm-btn{border:none;background:transparent;border-radius:6px;padding:2px 9px;cursor:pointer;font-family:var(--font);font-weight:700;color:var(--text3);line-height:1.2}
 .zm-btn.on{background:var(--blue2);color:#fff}
 .sync-btn{display:flex;align-items:center;gap:6px;background:var(--blue2);border:none;color:#fff;padding:7px 16px;border-radius:8px;font-size:12px;cursor:pointer;font-family:var(--font);font-weight:500;transition:all .2s;white-space:nowrap;box-shadow:0 2px 6px rgba(37,99,235,.3)}
@@ -586,7 +614,7 @@ select.fs:focus{border-color:var(--blue2);box-shadow:0 0 0 3px rgba(37,99,235,.1
     <div style="display:flex;gap:2px;align-items:center;background:var(--bg2,#f1f5f9);border-radius:8px;padding:2px" title="ขนาดตัวหนังสือ">
       <button class="zm-btn" data-z="1" onclick="uiZoom(1)" style="font-size:12px">ก</button><button class="zm-btn" data-z="1.5" onclick="uiZoom(1.5)" style="font-size:15px">ก</button><button class="zm-btn" data-z="2" onclick="uiZoom(2)" style="font-size:18px">ก</button>
     </div>
-    <button class="sync-btn" onclick="sbOn()?sbLoad():buildXlPage()"><div class="sdot" id="sdot"></div>🔄 Refresh</button>
+    <button class="sync-btn" onclick="sbOn()?sbLoad():buildXlPage()"><div class="sdot" id="sdot"></div>🔄<span class="rf-txt"> Refresh</span></button>
   </div>
 </header>
 
@@ -890,10 +918,14 @@ function getPS(id){return parseInt(document.getElementById(id)?.value||'50')||50
 //  INIT
 // ════════════════════════════════════════════
 // ขนาดตัวหนังสือทั้งหน้า (จำค่าไว้ในเครื่อง)
+let _uiZoom=1;
 function uiZoom(z){
-  z=+z||1;try{localStorage.setItem('ui_zoom',z);}catch(e){}
-  document.body.style.zoom=z;
-  if(window.Chart)Chart.defaults.devicePixelRatio=(window.devicePixelRatio||1)*z;
+  z=+z||1;_uiZoom=z;try{localStorage.setItem('ui_zoom',z);}catch(e){}
+  // จอแคบ (มือถือ) ขยายได้เท่าที่จอยังกว้างพอ ~340px หลังขยาย เพื่อไม่ให้ล้นขอบ
+  const w=window.innerWidth||document.documentElement.clientWidth;
+  const ze=Math.max(1,Math.min(z,w/(w<768?340:680)));
+  document.body.style.zoom=ze;
+  if(window.Chart)Chart.defaults.devicePixelRatio=(window.devicePixelRatio||1)*ze;
   document.querySelectorAll('.zm-btn').forEach(b=>b.classList.toggle('on',+b.dataset.z===z));
   if(window.Chart)Object.values(Chart.instances||{}).forEach(c=>{try{c.resize();c.update('none');}catch(e){}});
 }
@@ -901,6 +933,9 @@ window.onload=()=>{
   // เมนูเดิมที่ดึงจาก Google Sheet ถูกปิดไว้ จึงไม่ต้องโหลด (loadAll) ตอนเปิดหน้า
   let z=2;try{const v=localStorage.getItem('ui_zoom');if(v)z=+v;}catch(e){}
   uiZoom(z);
+  let rt,mob=(window.innerWidth||1000)<640;
+  window.addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{uiZoom(_uiZoom);
+    const m=(window.innerWidth||1000)<640;if(m!==mob){mob=m;if(typeof _sumData!=='undefined'&&_sumData&&document.getElementById('sumTabBody'))renderSumTab();}},200);});
 };
 
 async function loadAll(){
@@ -3078,6 +3113,9 @@ function nav(name,el,mob=0){
   if(mob){document.querySelectorAll('.mi').forEach(i=>i.classList.remove('on'));}
   else{document.querySelectorAll('.ni').forEach(i=>i.classList.remove('on'));}
   el?.classList.add('on');
+  // ให้เมนูด้านข้างและเมนูล่าง (มือถือ) ตรงกันเสมอ
+  document.querySelectorAll('.ni,.mi').forEach(i=>i.classList.toggle('on',(i.getAttribute('onclick')||'').includes("nav('"+name+"'")));
+  window.scrollTo(0,0);
   if(name==='trend')setTimeout(buildTrend,80);
   if(name==='inv')setTimeout(buildInvPage,80);
   if(name==='cust')setTimeout(buildCustPage,80);
@@ -3955,12 +3993,12 @@ function buildXlPage(){
         <div style="font-size:18px;font-weight:700">💼 วิเคราะห์ยอดขาย & ค่าคอม Sales Shopee</div>
         <div style="font-size:12px;opacity:.85;margin-top:3px">นำเข้าไฟล์ Excel คำสั่งซื้อจาก Shopee Seller Centre · คิดค่าคอมจากออร์เดอร์สถานะ “สำเร็จแล้ว” เท่านั้น</div>
       </div>
-      <div style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.14);padding:6px 10px;border-radius:10px">
-        <span style="font-size:12px">อัตราค่าคอม</span>
+      <div style="display:flex;align-items:center;gap:6px 6px;flex-wrap:wrap;background:rgba(255,255,255,.14);padding:6px 10px;border-radius:10px;max-width:100%">
+        <span style="font-size:12px;white-space:nowrap">อัตราค่าคอม</span>
         <input type="number" min="0" step="0.5" value="${_xlRate}" onchange="xlSetRate(this.value)" style="width:58px;padding:4px 6px;border-radius:6px;border:none;font-family:var(--mono);font-weight:600;text-align:right">
         <span style="font-size:12px">%</span>
-        <span style="font-size:12px;margin-left:10px">รอบค่าคอม</span>
-        <select onchange="xlSetCutDay(this.value)" style="padding:4px 6px;border-radius:6px;border:none;font-family:var(--font);font-size:12px">
+        <span style="font-size:12px;margin-left:10px;white-space:nowrap">รอบค่าคอม</span>
+        <select onchange="xlSetCutDay(this.value)" style="max-width:100%;padding:4px 6px;border-radius:6px;border:none;font-family:var(--font);font-size:12px">
           ${[[0,'1 – สิ้นเดือน'],...[20,21,22,23,24,25,26,27,28].map(d=>[d,`${d+1} เดือนก่อน – ${d}`])].map(([v,l])=>`<option value="${v}" ${_xlCutDay===v?'selected':''}>${l}</option>`).join('')}
         </select>
       </div>
@@ -4332,7 +4370,20 @@ function buildSumPage(){
 }
 function sumKpi(lbl,val,sub,color){return `<div class="fc" style="border-top:3px solid ${color}"><div class="fc-lbl">${lbl}</div><div class="fc-val" style="color:${color};font-size:20px">${val}</div><div class="fc-sub">${sub}</div></div>`;}
 
+const sumIsMobile=()=>(window.innerWidth||1000)<640;
+// มือถือ: แสดงแต่ละแถวเป็นการ์ด อ่านง่าย ไม่ต้องเลื่อนตารางซ้ายขวา
+function sumCards(head,rows,opt){
+  const skip=head[0]==='#'?2:1;
+  return `<div class="ts m-cards" style="max-height:${Math.max(opt.h||460,520)}px">${rows.map(r=>{
+    const title=skip===2?`${r[0]}. ${r[1]}`:r[0];
+    return `<div class="m-card"><div class="m-card-t">${title}</div><div class="m-card-g">${r.slice(skip).map((c,j)=>{const h=head[j+skip];
+      if(c===''||c==null)return '';
+      const txt=String(c).replace(/<[^>]*>/g,'');
+      if(h&&(txt.length>26||/<br|<div|<ul|<li/i.test(String(c))))return `<div class="m-full"><div class="m-k">${h}</div><div class="m-long">${c}</div></div>`;
+      return h?`<div class="m-k">${h}</div><div class="m-v">${c}</div>`:`<div class="m-full">${c}</div>`;}).join('')}</div></div>`;}).join('')}</div>`;
+}
 function sumTable(head,rows,opt={}){
+  if(sumIsMobile()&&opt.cards!==false)return sumCards(head,rows,opt);
   return `<div class="ts" style="max-height:${opt.h||460}px"><table><thead><tr>${head.map((h,i)=>`<th style="${opt.right&&opt.right.includes(i)?'text-align:right':''}${opt.sort?';cursor:pointer':''}" ${opt.sort&&opt.sort[i]?`onclick="${opt.sort[i]}"`:''}>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((c,i)=>`<td style="${opt.right&&opt.right.includes(i)?'text-align:right;font-family:var(--mono)':''}">${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 const sumLinkBadge=s=>s==='ok'?'<span class="stag" style="color:var(--green);background:var(--green-lt);border-color:rgba(21,128,61,.25)">มีต้นทุน</span>'
