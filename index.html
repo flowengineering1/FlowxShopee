@@ -96,6 +96,10 @@ header{
 .ds-chip{display:flex;align-items:center;gap:5px;font-size:11px;font-family:var(--mono);padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text3)}
 .ds-chip .d{width:6px;height:6px;border-radius:50%}
 .hdr-right{display:flex;align-items:center;gap:8px}
+/* เวอร์ชันแอป */
+.app-ver{font-size:11px;font-weight:700;color:#4338ca;background:#eef2ff;border:1px solid #c7d2fe;border-radius:999px;padding:1px 8px;font-family:var(--mono);white-space:nowrap}
+.app-foot{text-align:center;font-size:11px;color:var(--text4);padding:18px 0 8px;font-family:var(--mono)}
+@media(max-width:768px){.app-foot{padding-bottom:90px}.app-ver{display:none}}
 /* วันที่ข้อมูลล่าสุด มุมขวาบน */
 .asof{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15;padding:4px 12px;border-radius:10px;background:#fff7ed;border:2px solid #fdba74;white-space:nowrap;flex-shrink:0}
 .asof-l{font-size:11px;color:#9a3412;font-weight:600}
@@ -614,6 +618,7 @@ select.fs:focus{border-color:var(--blue2);box-shadow:0 0 0 3px rgba(37,99,235,.1
     </div>
     <div class="logo-sep"></div>
     <span class="logo-sub">Sale Dashboard</span>
+    <span class="app-ver" id="appVer"></span>
   </div>
   <div class="hdr-mid">
     <div class="ds-chip" style="display:none"><div class="d" style="background:#f97316"></div><span id="chip1">Orders: —</span></div>
@@ -858,6 +863,7 @@ select.fs:focus{border-color:var(--blue2);box-shadow:0 0 0 3px rgba(37,99,235,.1
   <div id="xlContent"></div>
 </div>
 
+  <div class="app-foot" id="appFoot"></div>
 </main>
 </div>
 
@@ -941,7 +947,16 @@ function uiZoom(z){
   if(typeof _sumData!=='undefined'&&_sumData&&document.getElementById('sumTabBody'))try{renderSumTab();}catch(e){}
   if(window.Chart)Object.values(Chart.instances||{}).forEach(c=>{try{c.resize();c.update('none');}catch(e){}});
 }
+// ── เวอร์ชันแอป: เพิ่มเลขทุกครั้งที่แก้ไข ──
+const APP_VERSION='2.3.1', APP_BUILD='2026-11-01';
+const APP_CHANGES='แก้ไขยอดที่จ่ายได้ พร้อมประวัติการแก้ไข (เหตุผล วันเวลา IP เครื่อง) · กล่องอัปโหลดอยู่บนสุด · รอบค่าคอมเริ่มต้น 1–สิ้นเดือน · หัวข้อทุกกล่อง';
+function showAppVersion(){
+  const th=d=>{const mo=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];return `${+d.substring(8,10)} ${mo[+d.substring(5,7)-1]} ${String(+d.substring(0,4)+543).slice(-2)}`;};
+  const v=document.getElementById('appVer');if(v){v.textContent='v'+APP_VERSION;v.title='อัปเดต '+th(APP_BUILD)+' · '+APP_CHANGES;}
+  const f=document.getElementById('appFoot');if(f)f.textContent=`Flow × Shopee Sale Dashboard v${APP_VERSION} · อัปเดต ${th(APP_BUILD)}`;
+}
 window.onload=()=>{
+  showAppVersion();
   // เมนูเดิมที่ดึงจาก Google Sheet ถูกปิดไว้ จึงไม่ต้องโหลด (loadAll) ตอนเปิดหน้า
   let z=2;try{const v=localStorage.getItem('ui_zoom');if(v)z=+v;}catch(e){}
   uiZoom(z);
@@ -3824,6 +3839,7 @@ async function sbLoad(){
     _xlFiles=rows.length?[{name:'Database',rows}]:[];_xlActive='all';
     await sumLoadMasterDb();
     await xlLoadPaid();
+    await xlLoadPayLog();
     _sbStatus='🟢 เชื่อมต่อ database แล้ว · '+fmtN(new Set(rows.map(r=>r.id)).size)+' ออร์เดอร์';
   }catch(e){_sbStatus='🔴 '+e.message;}
   buildXlPage();
@@ -3868,8 +3884,8 @@ function xlDbBar(){
 
 let _xlActive='all';    // 'all' | file name
 let _xlRate=10;
-// รอบค่าคอม: วันตัดรอบ (0 = 1 ถึงสิ้นเดือน) เช่น 24 = วันที่ 25 ของเดือนก่อน ถึงวันที่ 24 นับเป็นรอบของเดือนนั้น
-var _xlCutDay=(()=>{try{const v=localStorage.getItem('xl_cut_day');return v==null?24:+v;}catch(e){return 24;}})();
+// รอบค่าคอม: วันตัดรอบ (ค่าเริ่มต้น 0 = 1 ถึงสิ้นเดือน) เช่น 24 = วันที่ 25 ของเดือนก่อน ถึงวันที่ 24 นับเป็นรอบของเดือนนั้น
+var _xlCutDay=(()=>{try{const v=localStorage.getItem('xl_cut_day_v2');return v==null?0:+v;}catch(e){return 0;}})();
 function xlPeriod(d){
   if(!d)return '';
   let y=+d.substring(0,4),m=+d.substring(5,7);const day=+d.substring(8,10);
@@ -3890,10 +3906,51 @@ const XL_PAID_LS='shopee_comm_paid_v1';
 function xlPaidIndex(){_xlPaidMap={};Object.values(_xlPaid).forEach(p=>(p.order_ids||[]).forEach(id=>_xlPaidMap[id]=p.period));}
 function xlPaidSaveLocal(){try{localStorage.setItem(XL_PAID_LS,JSON.stringify(_xlPaid));}catch(e){}}
 (function(){try{_xlPaid=JSON.parse(localStorage.getItem(XL_PAID_LS)||'{}')||{};}catch(e){_xlPaid={};}xlPaidIndex();})();
+// ── log การจ่าย/แก้ไข/ยกเลิก (เพิ่มได้อย่างเดียว แก้หรือลบไม่ได้) ──
+var _xlPayLog=[];
+const XL_LOG_LS='shopee_comm_paylog_v1';
+(function(){try{_xlPayLog=JSON.parse(localStorage.getItem(XL_LOG_LS)||'[]')||[];}catch(e){_xlPayLog=[];}})();
+function xlEditorName(){try{return localStorage.getItem('xl_editor_name')||'';}catch(e){return '';}}
+function xlDeviceInfo(){const u=navigator.userAgent||'';
+  const os=/Windows/.test(u)?'Windows':/iPhone|iPad/.test(u)?'iOS':/Android/.test(u)?'Android':/Mac OS/.test(u)?'macOS':/Linux/.test(u)?'Linux':'อื่นๆ';
+  const br=/Edg\//.test(u)?'Edge':/Chrome\//.test(u)?'Chrome':/Firefox\//.test(u)?'Firefox':/Safari\//.test(u)?'Safari':'Browser';
+  return os+' · '+br+(/Mobile/.test(u)?' (มือถือ)':'');}
+async function xlLogAdd(e){
+  const rec={period:e.period,action:e.action,old_amount:e.old_amount??null,new_amount:e.new_amount??null,old_paid_at:e.old_paid_at||null,new_paid_at:e.new_paid_at||null,
+    reason:e.reason||'',editor:xlEditorName(),device:xlDeviceInfo(),user_agent:(navigator.userAgent||'').substring(0,300)};
+  let saved=null;
+  if(sbOn()){try{const r=await sbFetch('shopee_commission_payment_log',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify([rec])});saved=r&&r[0];}catch(err){console.warn('pay log',err);}}
+  const row=saved||{...rec,created_at:new Date().toISOString(),ip:'(ยังไม่ได้บันทึกลง database)',local:true};
+  _xlPayLog.unshift(row);try{localStorage.setItem(XL_LOG_LS,JSON.stringify(_xlPayLog.slice(0,500)));}catch(err){}
+  return !!saved;
+}
+async function xlLoadPayLog(){
+  if(!sbOn())return;
+  try{const rows=await sbFetch('shopee_commission_payment_log?select=*&order=created_at.desc&limit=1000');
+    const local=_xlPayLog.filter(l=>l.local);
+    _xlPayLog=[...local,...(rows||[])];try{localStorage.setItem(XL_LOG_LS,JSON.stringify(_xlPayLog.slice(0,500)));}catch(e){}
+  }catch(e){console.warn('pay log load',e);}
+}
+const xlThDT=t=>{if(!t)return '';const d=new Date(t);if(isNaN(d))return t;return d.toLocaleString('th-TH',{day:'numeric',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});};
+function xlPayLogShow(k){
+  const list=_xlPayLog.filter(l=>!k||l.period===k);
+  const col={'จ่าย':'var(--green)','แก้ไข':'var(--orange)','ยกเลิก':'var(--red)'};
+  const amt=v=>v==null||v===''?'-':'฿'+fmt(+v);
+  sumModal('📜 ประวัติการจ่ายค่าคอม'+(k?' รอบ '+xlMonthLabel(k):' ทุกรอบ'),
+    (list.length?sumTable(['วันเวลา','รอบ','การกระทำ','ยอดเดิม','ยอดใหม่','วันที่จ่าย','เหตุผล','ผู้ทำรายการ','IP','เครื่อง'],
+      list.map(l=>[xlThDT(l.created_at),xlMonthLabel(l.period),`<b style="color:${col[l.action]||'inherit'}">${l.action}</b>`,amt(l.old_amount),amt(l.new_amount),
+        (l.old_paid_at&&l.old_paid_at!==l.new_paid_at?xlThDate(l.old_paid_at)+' → ':'')+(l.new_paid_at?xlThDate(l.new_paid_at):'-'),l.reason||'-',l.editor||'-',
+        `<span style="font-family:var(--mono);font-size:11px">${l.ip||'-'}</span>`,`<span style="font-size:11px">${l.device||'-'}</span>`]),{right:[3,4],h:480})
+      :'<div class="empty" style="padding:16px">ยังไม่มีประวัติ</div>')+
+    `<div style="font-size:11px;color:var(--text3);margin-top:8px">บันทึกทุกครั้งที่กดจ่าย แก้ไข หรือยกเลิก ประวัตินี้แก้ไขหรือลบไม่ได้ · IP บันทึกโดย database ตอนรับข้อมูล</div>`);
+}
 async function xlLoadPaid(){
   if(!sbOn())return;
   try{
-    const rows=await sbFetch('shopee_commission_payments?select=*');
+    let rows=await sbFetch('shopee_commission_payments?select=*');
+    // รอบที่กดจ่ายไว้ในเครื่องก่อนมีตารางใน database → ส่งขึ้นให้อัตโนมัติ
+    const have=new Set((rows||[]).map(r=>r.period)),pend=Object.values(_xlPaid).filter(p=>!have.has(p.period));
+    if(pend.length){await sbFetch('shopee_commission_payments?on_conflict=period',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(pend)});rows=[...(rows||[]),...pend];}
     _xlPaid={};(rows||[]).forEach(r=>{_xlPaid[r.period]={...r,order_ids:Array.isArray(r.order_ids)?r.order_ids:[]};});
     xlPaidSaveLocal();xlPaidIndex();
   }catch(e){console.warn('commission payments',e);}  // ยังไม่ได้รัน SQL v4 → ใช้ข้อมูลในเครื่อง
@@ -3926,7 +3983,9 @@ function xlPayOpen(k){
     <label style="display:block;font-weight:600;margin-bottom:4px">วันที่จ่าย</label>
     <input id="xlPayDate" type="date" value="${today}" style="width:100%;padding:8px;border:1px solid var(--border2);border-radius:8px;margin-bottom:10px">
     <label style="display:block;font-weight:600;margin-bottom:4px">หมายเหตุ</label>
-    <input id="xlPayNote" type="text" placeholder="เช่น โอนพร้อมเงินเดือน" style="width:100%;padding:8px;border:1px solid var(--border2);border-radius:8px;margin-bottom:12px">
+    <input id="xlPayNote" type="text" placeholder="เช่น โอนพร้อมเงินเดือน" style="width:100%;padding:8px;border:1px solid var(--border2);border-radius:8px;margin-bottom:10px">
+    <label style="display:block;font-weight:600;margin-bottom:4px">ชื่อผู้ทำรายการ</label>
+    <input id="xlPayEditor" type="text" value="${xlEditorName().replace(/"/g,'&quot;')}" placeholder="เช่น อ้อม" style="width:100%;padding:8px;border:1px solid var(--border2);border-radius:8px;margin-bottom:12px">
     <div style="font-size:12px;color:var(--text3);margin-bottom:12px">เมื่อยืนยัน ระบบจะล็อกยอดและรายการ ${fmtN(orders.length)} ออร์เดอร์นี้ไว้กับรอบ ${xlMonthLabel(k)} ถ้าเปลี่ยนรอบตัดยอดภายหลัง ออร์เดอร์เหล่านี้จะไม่ย้ายไปรอบอื่นและไม่ถูกนับจ่ายซ้ำ</div>
     <button class="xl-tab-btn active" style="width:100%;justify-content:center;padding:10px;font-size:15px" onclick="xlPayConfirm('${k}')">🔒 ยืนยันจ่ายและล็อกยอด</button>`);
 }
@@ -3939,22 +3998,68 @@ async function xlPayConfirm(k){
   const rec={period:k,cut_day:_xlCutDay,period_start:st,period_end:en,order_ids:orders.map(o=>o.id),orders:orders.length,
     sales,commission_rate:_xlRate,commission_calc:Math.round(sales*_xlRate)/100,paid_amount:Math.round(amt*100)/100,
     paid_at:document.getElementById('xlPayDate').value||new Date().toISOString().substring(0,10),note:document.getElementById('xlPayNote').value||'',updated_at:new Date().toISOString()};
+  xlSaveEditorName();
   _xlPaid[k]=rec;xlPaidSaveLocal();xlPaidIndex();
   let msg='';
   if(sbOn()){try{await sbFetch('shopee_commission_payments?on_conflict=period',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify([rec])});}
     catch(e){msg='บันทึกในเครื่องนี้แล้ว แต่ยังบันทึกลง database ไม่ได้ (ต้องรัน supabase_schema_v4_commission_paid.sql ก่อน)\n'+e.message;}}
+  await xlLogAdd({period:k,action:'จ่าย',new_amount:rec.paid_amount,new_paid_at:rec.paid_at,reason:rec.note||'บันทึกการจ่าย'});
+  document.getElementById('sumModal')?.remove();
+  buildXlPage();xlSetTab('month');
+  if(msg)alert(msg);
+}
+function xlSaveEditorName(){const v=document.getElementById('xlPayEditor')?.value?.trim();if(v!=null)try{localStorage.setItem('xl_editor_name',v);}catch(e){}}
+function xlPayEdit(k){
+  const p=_xlPaid[k];if(!p)return;
+  sumModal('✏️ แก้ไขยอดที่จ่าย รอบ '+xlMonthLabel(k),`
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:14px;margin-bottom:14px">
+      <span style="color:var(--text3)">ช่วงวันที่</span><b>${xlThDate(p.period_start)} – ${xlThDate(p.period_end)}</b>
+      <span style="color:var(--text3)">ค่าคอมที่คำนวณตอนจ่าย</span><b style="color:#4338ca">฿${fmt(p.commission_calc)}</b>
+      <span style="color:var(--text3)">ยอดที่จ่ายปัจจุบัน</span><b style="color:var(--green)">฿${fmt(p.paid_amount)} · ${xlThDate(p.paid_at)}</b>
+    </div>
+    <label style="display:block;font-weight:600;margin-bottom:4px">ยอดที่จ่ายใหม่ (฿)</label>
+    <input id="xlPayAmt" type="number" step="0.01" min="0" value="${(+p.paid_amount).toFixed(2)}" style="width:100%;padding:10px;font-size:18px;font-family:var(--mono);border:2px solid var(--orange);border-radius:10px;margin-bottom:10px">
+    <label style="display:block;font-weight:600;margin-bottom:4px">วันที่จ่าย</label>
+    <input id="xlPayDate" type="date" value="${p.paid_at||''}" style="width:100%;padding:8px;border:1px solid var(--border2);border-radius:8px;margin-bottom:10px">
+    <label style="display:block;font-weight:600;margin-bottom:4px">เหตุผลที่แก้ไข <span style="color:var(--red)">*</span></label>
+    <input id="xlPayReason" type="text" placeholder="เช่น จ่ายเพิ่มส่วนต่างจากออร์เดอร์ที่สำเร็จช้า" style="width:100%;padding:8px;border:2px solid var(--border2);border-radius:8px;margin-bottom:10px">
+    <label style="display:block;font-weight:600;margin-bottom:4px">ชื่อผู้แก้ไข</label>
+    <input id="xlPayEditor" type="text" value="${xlEditorName().replace(/"/g,'&quot;')}" placeholder="เช่น อ้อม" style="width:100%;padding:8px;border:1px solid var(--border2);border-radius:8px;margin-bottom:12px">
+    <div style="font-size:12px;color:var(--text3);margin-bottom:12px">ระบบจะบันทึกประวัติการแก้ไข พร้อมยอดเดิม ยอดใหม่ เหตุผล วันเวลา IP และเครื่องที่ใช้</div>
+    <button class="xl-tab-btn active" style="width:100%;justify-content:center;padding:10px;font-size:15px" onclick="xlPayEditSave('${k}')">💾 บันทึกการแก้ไข</button>`);
+}
+async function xlPayEditSave(k){
+  const p=_xlPaid[k];if(!p)return;
+  const amt=parseFloat(document.getElementById('xlPayAmt').value),date=document.getElementById('xlPayDate').value||p.paid_at;
+  const reason=(document.getElementById('xlPayReason').value||'').trim();
+  if(!(amt>=0)){alert('กรุณาใส่ยอดที่จ่าย');return;}
+  if(!reason){alert('กรุณาใส่เหตุผลที่แก้ไข');document.getElementById('xlPayReason').focus();return;}
+  const newAmt=Math.round(amt*100)/100;
+  if(newAmt===+p.paid_amount&&date===p.paid_at){alert('ยอดและวันที่ไม่ได้เปลี่ยน');return;}
+  xlSaveEditorName();
+  const old={amt:+p.paid_amount,date:p.paid_at};
+  const rec={...p,paid_amount:newAmt,paid_at:date,updated_at:new Date().toISOString()};
+  _xlPaid[k]=rec;xlPaidSaveLocal();
+  let msg='';
+  if(sbOn()){try{await sbFetch('shopee_commission_payments?on_conflict=period',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify([rec])});}
+    catch(e){msg='บันทึกในเครื่องนี้แล้ว แต่ยังบันทึกลง database ไม่ได้\n'+e.message;}}
+  const ok=await xlLogAdd({period:k,action:'แก้ไข',old_amount:old.amt,new_amount:newAmt,old_paid_at:old.date,new_paid_at:date,reason});
+  if(!ok&&sbOn()&&!msg)msg='บันทึกการแก้ไขแล้ว แต่ยังบันทึกประวัติลง database ไม่ได้ (ต้องรัน supabase_schema_v5_payment_log.sql ก่อน)';
   document.getElementById('sumModal')?.remove();
   buildXlPage();xlSetTab('month');
   if(msg)alert(msg);
 }
 async function xlPayCancel(k){
   const p=_xlPaid[k];if(!p)return;
-  if(!confirm(`ยกเลิกการล็อกรอบ ${xlMonthLabel(k)} ที่จ่ายไป ฿${fmt(p.paid_amount)} ใช่ไหม?\nออร์เดอร์ในรอบนี้จะกลับไปคำนวณตามรอบตัดยอดปัจจุบัน`))return;
+  const reason=prompt(`ยกเลิกการล็อกรอบ ${xlMonthLabel(k)} ที่จ่ายไป ฿${fmt(p.paid_amount)}\nออร์เดอร์ในรอบนี้จะกลับไปคำนวณตามรอบตัดยอดปัจจุบัน\n\nกรุณาใส่เหตุผลที่ยกเลิก:`);
+  if(reason==null)return;
+  if(!reason.trim()){alert('กรุณาใส่เหตุผลที่ยกเลิก');return;}
+  await xlLogAdd({period:k,action:'ยกเลิก',old_amount:+p.paid_amount,old_paid_at:p.paid_at,reason:reason.trim()});
   delete _xlPaid[k];xlPaidSaveLocal();xlPaidIndex();
   if(sbOn()){try{await sbFetch('shopee_commission_payments?period=eq.'+encodeURIComponent(k),{method:'DELETE'});}catch(e){alert('ลบใน database ไม่สำเร็จ: '+e.message);}}
   buildXlPage();xlSetTab('month');
 }
-function xlSetCutDay(v){_xlCutDay=Math.max(0,Math.min(28,parseInt(v)||0));try{localStorage.setItem('xl_cut_day',_xlCutDay);}catch(e){}_sumMonth='all';buildXlPage();if(document.getElementById('page-sum')?.classList.contains('on'))buildSumPage();}
+function xlSetCutDay(v){_xlCutDay=Math.max(0,Math.min(28,parseInt(v)||0));try{localStorage.setItem('xl_cut_day_v2',_xlCutDay);}catch(e){}_sumMonth='all';buildXlPage();if(document.getElementById('page-sum')?.classList.contains('on'))buildSumPage();}
 let _xlTab='month';
 let _xlRows=[];         // normalized rows (current view)
 
@@ -4081,15 +4186,6 @@ function buildXlPage(){
     </div>`:'';
 
   el.innerHTML=`
-  ${_xlFiles.length?`  <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
-    <button class="xl-tab-btn" id="xlTab_month" onclick="xlSetTab('month')">📅 รายเดือน</button>
-    <button class="xl-tab-btn" id="xlTab_prod" onclick="xlSetTab('prod')">📦 สินค้าขายดี</button>
-    <button class="xl-tab-btn" id="xlTab_fee" onclick="xlSetTab('fee')">💸 ค่าธรรมเนียมรายเดือน</button>
-    <button class="xl-tab-btn" id="xlTab_ord" onclick="xlSetTab('ord')">🛒 รายการออร์เดอร์</button>
-    <button class="xl-tab-btn" onclick="xlExport()" style="margin-left:auto">⬇ Export Excel</button>
-  </div>
-  <div class="cc" id="xlTabBody" style="padding:0;overflow:hidden"></div>
-`:''}
   <div class="xl-hero">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;position:relative;z-index:1">
       <div>
@@ -4113,8 +4209,20 @@ function buildXlPage(){
       <span style="font-size:11px;opacity:.8">เลือกได้หลายไฟล์พร้อมกัน เช่น Order.completed.*.xlsx · ออร์เดอร์ที่ซ้ำกันระหว่างไฟล์จะนับครั้งเดียว</span></span>
     </label>
   </div>
+  ${_xlFiles.length?`  <div class="st" style="margin-top:18px"><span id="xlTabTitle">📅 ค่าคอม Sales รายเดือน</span> <span class="stag tag-b" id="xlTabTag"></span></div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+    <button class="xl-tab-btn" id="xlTab_month" onclick="xlSetTab('month')">📅 รายเดือน</button>
+    <button class="xl-tab-btn" id="xlTab_prod" onclick="xlSetTab('prod')">📦 สินค้าขายดี</button>
+    <button class="xl-tab-btn" id="xlTab_fee" onclick="xlSetTab('fee')">💸 ค่าธรรมเนียมรายเดือน</button>
+    <button class="xl-tab-btn" id="xlTab_ord" onclick="xlSetTab('ord')">🛒 รายการออร์เดอร์</button>
+    <button class="xl-tab-btn" onclick="xlExport()" style="margin-left:auto">⬇ Export Excel</button>
+  </div>
+  <div class="cc" id="xlTabBody" style="padding:0;overflow:hidden"></div>
+`:''}
+  <div class="st" style="margin-top:18px">🗂️ แหล่งข้อมูล <span class="stag tag-b">${_xlFiles.length?fmtN(_xlFiles.length)+' ชุดข้อมูล':'ยังไม่มีข้อมูล'}</span></div>
   ${xlDbBar()}${chips}
   ${!_xlFiles.length?'<div class="empty">ยังไม่มีข้อมูล — นำเข้าไฟล์ Excel จาก Shopee เพื่อเริ่มวิเคราะห์</div>':`
+  <div class="st" style="margin-top:18px">📊 สรุปยอดขาย & ค่าคอม <span class="stag tag-b">${_xlActive==='all'?'ทุกไฟล์':_xlActive}</span></div>
   <div class="xl-kpi-grid">
     <div class="xl-comm-card">
       <div class="fc-lbl" style="color:#4338ca">ค่าคอม Sales (${_xlRate}%)</div>
@@ -4145,7 +4253,7 @@ function buildXlPage(){
   ${(()=>{const F=done.reduce((t,o)=>{['comm','trans','svc','ship','voucher','fees'].forEach(k=>t[k]+=o[k]);return t;},{comm:0,trans:0,svc:0,ship:0,voucher:0,fees:0});
     const c=(l,v,sub,col)=>`<div class="fc" style="border-top:3px solid ${col}"><div class="fc-lbl">${l}</div><div class="fc-val" style="color:${col};font-size:18px">฿${fmt(v)}</div><div class="fc-sub">${sub}</div></div>`;
     const p=v=>doneSales?(v/doneSales*100).toFixed(1)+'% ของยอดขาย':'';
-    return `<div class="st" style="margin-top:18px">💸 ค่าธรรมเนียม Shopee <span class="stag tag-b">ออร์เดอร์สำเร็จ</span></div>
+    return `<div class="st" style="margin-top:18px">💸 ค่าธรรมเนียม Shopee รวมทุกเดือน <span class="stag tag-b">ออร์เดอร์สำเร็จ</span></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:10px;margin-bottom:18px">
       ${c('ค่าคอมมิชชั่น Shopee',F.comm,p(F.comm),'var(--orange)')}
       ${c('Transaction Fee',F.trans,p(F.trans),'var(--yellow)')}
@@ -4197,6 +4305,8 @@ function xlProducts(rows){
 
 function renderXlTab(){
   const body=document.getElementById('xlTabBody');if(!body)return;
+  const TT={month:['📅 ค่าคอม Sales รายเดือน',()=>_xlCutDay?`รอบ ${_xlCutDay+1} – ${_xlCutDay}`:'รอบ 1 – สิ้นเดือน'],prod:['📦 สินค้าขายดี',()=>'เรียงตามยอดขาย'],fee:['💸 ค่าธรรมเนียม Shopee รายเดือน',()=>'ออร์เดอร์สำเร็จ'],ord:['🛒 รายการออร์เดอร์',()=>'ทุกสถานะ']}[_xlTab]||[];
+  const tt=document.getElementById('xlTabTitle'),tg=document.getElementById('xlTabTag');if(tt&&TT[0]){tt.textContent=TT[0];tg.textContent=TT[1]();}
   document.querySelectorAll('.xl-tab-btn[id^="xlTab_"]').forEach(b=>b.classList.toggle('active',b.id==='xlTab_'+_xlTab));
   const rate=_xlRate/100;
   const orders=xlOrders(_xlRows);
@@ -4209,13 +4319,13 @@ function renderXlTab(){
     const status=m=>{const p=_xlPaid[m.month];
       if(!p)return `<button class="xl-tab-btn" style="padding:4px 12px;border-color:#6366f1;color:#4338ca;font-weight:700" onclick="xlPayOpen('${m.month}')">💰 จ่าย</button>`;
       const diff=Math.round((m.sales*rate-p.commission_calc)*100)/100;
-      return `<div style="color:var(--green);font-weight:700;white-space:nowrap">🔒 จ่ายแล้ว ฿${fmt(p.paid_amount)}</div><div style="font-size:11px;color:var(--text3)">${xlThDate(p.paid_at)}${p.note?' · '+p.note:''} · <a href="#" onclick="xlPayCancel('${m.month}');return false" style="color:var(--red)">ยกเลิก</a></div>${Math.abs(diff)>=0.01?`<div style="font-size:11px;color:var(--orange)">⚠️ ยอดตอนนี้ต่างจากตอนจ่าย ${diff>0?'+':''}฿${fmt(diff)}</div>`:''}`;};
+      return `<div style="color:var(--green);font-weight:700;white-space:nowrap">🔒 จ่ายแล้ว ฿${fmt(p.paid_amount)}</div><div style="font-size:11px;color:var(--text3)">${xlThDate(p.paid_at)}${p.note?' · '+p.note:''}</div><div style="font-size:12px;margin-top:3px;white-space:nowrap"><a href="#" onclick="xlPayEdit('${m.month}');return false" style="color:var(--orange);font-weight:600">✏️ แก้ไข</a> · <a href="#" onclick="xlPayLogShow('${m.month}');return false" style="color:var(--blue2)">📜 ประวัติ (${_xlPayLog.filter(l=>l.period===m.month).length})</a> · <a href="#" onclick="xlPayCancel('${m.month}');return false" style="color:var(--red)">ยกเลิก</a></div>${Math.abs(diff)>=0.01?`<div style="font-size:11px;color:var(--orange)">⚠️ ยอดตอนนี้ต่างจากตอนจ่าย ${diff>0?'+':''}฿${fmt(diff)}</div>`:''}`;};
     const lbl=m=>{const p=_xlPaid[m.month];return `รอบ ${xlMonthLabel(m.month)}${p?' 🔒':''}<div style="font-size:11px;color:var(--text3)">${p?xlThDate(p.period_start)+' – '+xlThDate(p.period_end):xlCycleRange(m.month)}</div>`;};
     html=`<table><thead><tr><th>เดือน</th><th style="text-align:right">ออร์เดอร์สำเร็จ</th><th style="text-align:right">ชิ้น</th><th style="text-align:right">ยอดขายสำเร็จ</th><th style="text-align:right">ค่าคอม ${_xlRate}%</th><th style="text-align:center">สถานะจ่าย</th></tr></thead><tbody>
       ${mon.map(m=>`<tr${_xlPaid[m.month]?' style="background:#f0fdf4"':''}><td>${lbl(m)}</td><td style="text-align:right">${fmtN(m.orders)}</td><td style="text-align:right">${fmtN(m.qty)}</td><td style="text-align:right;font-family:var(--mono)">${money(m.sales)}</td><td style="text-align:right;font-family:var(--mono);font-weight:700;color:#4338ca">${money(m.sales*rate)}</td><td style="text-align:center">${status(m)}</td></tr>`).join('')}
       <tr style="background:var(--blue-lt);font-weight:700"><td>รวม</td><td style="text-align:right">${fmtN(t.orders)}</td><td style="text-align:right">${fmtN(t.qty)}</td><td style="text-align:right;font-family:var(--mono)">${money(t.sales)}</td><td style="text-align:right;font-family:var(--mono);color:#4338ca">${money(t.sales*rate)}</td><td style="text-align:center;font-size:12px"><span style="color:var(--green)">จ่ายแล้ว ${money(P.paid)}</span><br><span style="color:var(--orange)">ค้างจ่าย ${money(P.due)}</span></td></tr>
     </tbody></table>
-    <div style="font-size:11px;color:var(--text3);padding:8px 12px;line-height:1.7">กด "💰 จ่าย" เมื่อจ่ายค่าคอมรอบนั้นแล้ว ใส่ยอดที่จ่ายจริง ระบบจะล็อกยอดและออร์เดอร์ของรอบนั้นไว้ (🔒) ถึงจะเปลี่ยนรอบตัดยอดภายหลัง ออร์เดอร์ที่จ่ายแล้วก็จะไม่ย้ายรอบและไม่ถูกนับจ่ายซ้ำ</div>`;
+    <div style="font-size:11px;color:var(--text3);padding:8px 12px;line-height:1.7">กด "💰 จ่าย" เมื่อจ่ายค่าคอมรอบนั้นแล้ว ใส่ยอดที่จ่ายจริง ระบบจะล็อกยอดและออร์เดอร์ของรอบนั้นไว้ (🔒) ถึงจะเปลี่ยนรอบตัดยอดภายหลัง ออร์เดอร์ที่จ่ายแล้วก็จะไม่ย้ายรอบและไม่ถูกนับจ่ายซ้ำ · <a href="#" onclick="xlPayLogShow();return false" style="color:var(--blue2);font-weight:600">📜 ดูประวัติการจ่าย/แก้ไขทั้งหมด (${_xlPayLog.length})</a></div>`;
   } else if(_xlTab==='fee'){
     const mon=xlMonthly(orders),K=['sales','comm','trans','svc','ship','voucher','fees'];
     const t=mon.reduce((s,m)=>{K.forEach(k=>s[k]+=m[k]);return s;},Object.fromEntries(K.map(k=>[k,0])));
