@@ -605,6 +605,7 @@ select.fs:focus{border-color:var(--blue2);box-shadow:0 0 0 3px rgba(37,99,235,.1
   background:#fff;color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;
 }
 .xl-tab-btn.active{background:#4f46e5;color:#fff;border-color:#4f46e5;box-shadow:0 2px 8px rgba(79,70,229,.3)}
+.xl-mlink{font-weight:700;color:var(--blue2,#1d4ed8);text-decoration:underline dotted;cursor:pointer}.xl-mbtn{padding:3px 10px!important;font-size:12px!important;margin-top:4px;border-color:#93c5fd!important;color:#1d4ed8!important}
 </style>
 </head>
 <body>
@@ -948,8 +949,8 @@ function uiZoom(z){
   if(window.Chart)Object.values(Chart.instances||{}).forEach(c=>{try{c.resize();c.update('none');}catch(e){}});
 }
 // ── เวอร์ชันแอป: เพิ่มเลขทุกครั้งที่แก้ไข ──
-const APP_VERSION='2.3.1', APP_BUILD='2026-11-01';
-const APP_CHANGES='แก้ไขยอดที่จ่ายได้ พร้อมประวัติการแก้ไข (เหตุผล วันเวลา IP เครื่อง) · กล่องอัปโหลดอยู่บนสุด · รอบค่าคอมเริ่มต้น 1–สิ้นเดือน · หัวข้อทุกกล่อง';
+const APP_VERSION='2.4.0', APP_BUILD='2026-11-01';
+const APP_CHANGES='กดรอบในตารางค่าคอม Sales รายเดือน เพื่อดูรายการขาย (ออร์เดอร์ สินค้า ค่าคอมรายออร์เดอร์) และ Export Excel รายรอบได้';
 function showAppVersion(){
   const th=d=>{const mo=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];return `${+d.substring(8,10)} ${mo[+d.substring(5,7)-1]} ${String(+d.substring(0,4)+543).slice(-2)}`;};
   const v=document.getElementById('appVer');if(v){v.textContent='v'+APP_VERSION;v.title='อัปเดต '+th(APP_BUILD)+' · '+APP_CHANGES;}
@@ -4320,7 +4321,7 @@ function renderXlTab(){
       if(!p)return `<button class="xl-tab-btn" style="padding:4px 12px;border-color:#6366f1;color:#4338ca;font-weight:700" onclick="xlPayOpen('${m.month}')">💰 จ่าย</button>`;
       const diff=Math.round((m.sales*rate-p.commission_calc)*100)/100;
       return `<div style="color:var(--green);font-weight:700;white-space:nowrap">🔒 จ่ายแล้ว ฿${fmt(p.paid_amount)}</div><div style="font-size:11px;color:var(--text3)">${xlThDate(p.paid_at)}${p.note?' · '+p.note:''}</div><div style="font-size:12px;margin-top:3px;white-space:nowrap"><a href="#" onclick="xlPayEdit('${m.month}');return false" style="color:var(--orange);font-weight:600">✏️ แก้ไข</a> · <a href="#" onclick="xlPayLogShow('${m.month}');return false" style="color:var(--blue2)">📜 ประวัติ (${_xlPayLog.filter(l=>l.period===m.month).length})</a> · <a href="#" onclick="xlPayCancel('${m.month}');return false" style="color:var(--red)">ยกเลิก</a></div>${Math.abs(diff)>=0.01?`<div style="font-size:11px;color:var(--orange)">⚠️ ยอดตอนนี้ต่างจากตอนจ่าย ${diff>0?'+':''}฿${fmt(diff)}</div>`:''}`;};
-    const lbl=m=>{const p=_xlPaid[m.month];return `รอบ ${xlMonthLabel(m.month)}${p?' 🔒':''}<div style="font-size:11px;color:var(--text3)">${p?xlThDate(p.period_start)+' – '+xlThDate(p.period_end):xlCycleRange(m.month)}</div>`;};
+    const lbl=m=>{const p=_xlPaid[m.month];return `<a href="#" class="xl-mlink" onclick="xlMonthDetail('${m.month}');return false" title="ดูรายการขายของรอบนี้">รอบ ${xlMonthLabel(m.month)}${p?' 🔒':''}</a><div style="font-size:11px;color:var(--text3)">${p?xlThDate(p.period_start)+' – '+xlThDate(p.period_end):xlCycleRange(m.month)}</div><button class="xl-tab-btn xl-mbtn" onclick="xlMonthDetail('${m.month}')">🔍 ดูรายการขาย</button>`;};
     html=`<table><thead><tr><th>เดือน</th><th style="text-align:right">ออร์เดอร์สำเร็จ</th><th style="text-align:right">ชิ้น</th><th style="text-align:right">ยอดขายสำเร็จ</th><th style="text-align:right">ค่าคอม ${_xlRate}%</th><th style="text-align:center">สถานะจ่าย</th></tr></thead><tbody>
       ${mon.map(m=>`<tr${_xlPaid[m.month]?' style="background:#f0fdf4"':''}><td>${lbl(m)}</td><td style="text-align:right">${fmtN(m.orders)}</td><td style="text-align:right">${fmtN(m.qty)}</td><td style="text-align:right;font-family:var(--mono)">${money(m.sales)}</td><td style="text-align:right;font-family:var(--mono);font-weight:700;color:#4338ca">${money(m.sales*rate)}</td><td style="text-align:center">${status(m)}</td></tr>`).join('')}
       <tr style="background:var(--blue-lt);font-weight:700"><td>รวม</td><td style="text-align:right">${fmtN(t.orders)}</td><td style="text-align:right">${fmtN(t.qty)}</td><td style="text-align:right;font-family:var(--mono)">${money(t.sales)}</td><td style="text-align:right;font-family:var(--mono);color:#4338ca">${money(t.sales*rate)}</td><td style="text-align:center;font-size:12px"><span style="color:var(--green)">จ่ายแล้ว ${money(P.paid)}</span><br><span style="color:var(--orange)">ค้างจ่าย ${money(P.due)}</span></td></tr>
@@ -4352,6 +4353,56 @@ function renderXlTab(){
   }
   body.innerHTML=html;
   if(sumIsMobile())xlCardify(body);
+}
+// drill down: รายการขายของแต่ละรอบค่าคอม
+function xlMonthData(k){
+  const orders=xlOrders(_xlRows).filter(o=>(o.month||'ไม่ระบุ')===k);
+  const done=orders.filter(o=>o.type==='done').sort((a,b)=>(a.doneAt||a.ordAt).localeCompare(b.doneAt||b.ordAt));
+  const ids=new Set(done.map(o=>o.id));
+  const lines=_xlRows.filter(r=>ids.has(r.id));
+  const prod={};lines.forEach(r=>{const key=r.name+'|'+(r.opt||'');if(!prod[key])prod[key]={name:r.name,opt:r.opt||'',orders:new Set(),qty:0,sales:0};
+    const x=prod[key];x.orders.add(r.id);x.qty+=r.qty-r.ret;x.sales+=r.net;});
+  return {orders,done,lines,prods:Object.values(prod).sort((a,b)=>b.sales-a.sales),
+    pending:orders.filter(o=>o.type==='pending').length,cancel:orders.filter(o=>o.type==='cancel').length};
+}
+function xlMonthDetail(k){
+  const D=xlMonthData(k),rate=_xlRate/100,p=_xlPaid[k];
+  const money=n=>'฿'+Number(n||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const S=D.done.reduce((s,o)=>{s.qty+=o.qty;s.sales+=o.net;s.fees+=o.fees;return s;},{qty:0,sales:0,fees:0});
+  const range=p?xlThDate(p.period_start)+' – '+xlThDate(p.period_end):xlCycleRange(k);
+  const kpi=(l,v,c)=>`<div style="background:var(--bg2,#f8fafc);border:1px solid var(--border,#e2e8f0);border-radius:10px;padding:10px 12px"><div style="font-size:12px;color:var(--text3)">${l}</div><div style="font-size:18px;font-weight:700;${c?'color:'+c:''}">${v}</div></div>`;
+  const itemsOf=id=>_xlRows.filter(r=>r.id===id).map(r=>`${r.name.substring(0,40)}${r.opt?' ('+r.opt+')':''} × ${fmtN(r.qty-r.ret)}`).join('<br>');
+  const ordRows=D.done.map((o,i)=>[i+1,`<a href="#" onclick="xlMonthOrder('${sumJs(o.id)}','${k}');return false" style="font-family:var(--mono);font-size:12px">${o.id}</a>`,
+    (o.doneAt||'-').substring(0,10),o.buyer||'-',o.province||'-',`<span style="font-size:12px">${itemsOf(o.id)}</span>`,fmtN(o.qty),money(o.net),`<b style="color:var(--blue2)">${money(o.net*rate)}</b>`]);
+  const prodRows=D.prods.map((x,i)=>[i+1,x.name.substring(0,60),x.opt||'-',fmtN(x.orders.size),fmtN(x.qty),money(x.sales),money(x.sales*rate)]);
+  sumModal(`📋 รายการขาย รอบ ${xlMonthLabel(k)}${p?' 🔒':''}`,`
+    <div style="font-size:13px;color:var(--text3);margin-bottom:10px">ช่วงวันที่ ${range} · นับเฉพาะออร์เดอร์สำเร็จแล้ว${p?' · <b style="color:var(--green)">จ่ายแล้ว '+money(p.paid_amount)+' เมื่อ '+xlThDate(p.paid_at)+'</b>':' · <b style="color:var(--yellow)">ยังไม่จ่าย</b>'}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:14px">
+      ${kpi('ออร์เดอร์สำเร็จ',fmtN(D.done.length))}${kpi('จำนวนชิ้น',fmtN(S.qty))}${kpi('ยอดขายสำเร็จ',money(S.sales))}
+      ${kpi('ค่าคอม '+_xlRate+'%',money(S.sales*rate),'var(--blue2)')}${kpi('ค่าธรรมเนียม Shopee',money(S.fees),'var(--red)')}
+      ${kpi('รอยืนยัน / ยกเลิก',fmtN(D.pending)+' / '+fmtN(D.cancel),'var(--text3)')}</div>
+    <div style="display:flex;gap:8px;align-items:center;margin:4px 0 8px;flex-wrap:wrap"><div style="font-weight:700">🧾 ออร์เดอร์ (${fmtN(D.done.length)}) <span style="font-weight:400;font-size:12px;color:var(--text3)">กดเลขออร์เดอร์เพื่อดูรายละเอียด</span></div>
+      <button class="xl-tab-btn" style="margin-left:auto" onclick="xlMonthExport('${k}')">⬇️ Export Excel</button></div>
+    ${D.done.length?sumTable(['#','เลขออร์เดอร์','วันที่สำเร็จ','ผู้ซื้อ','จังหวัด','สินค้า × จำนวน','ชิ้น','ยอดขาย','ค่าคอม'],ordRows,{right:[6,7,8],h:420}):'<div style="color:var(--text3);padding:10px">ไม่มีออร์เดอร์สำเร็จในรอบนี้</div>'}
+    <div style="font-weight:700;margin:16px 0 8px">📦 สรุปตามสินค้า (${fmtN(D.prods.length)} รายการ)</div>
+    ${sumTable(['#','สินค้า','ตัวเลือก','ออร์เดอร์','ชิ้น','ยอดขาย','ค่าคอม'],prodRows,{right:[3,4,5,6],h:320})}`);
+  const box=document.querySelector('#sumModal>div');if(box)box.style.maxWidth='1200px';
+}
+function xlMonthOrder(id,k){
+  sumShowOrder(id);
+  const m=document.getElementById('sumModal');const bar=m&&m.querySelector('div>div');
+  if(bar){const b=document.createElement('button');b.className='xl-tab-btn';b.textContent='← กลับรอบ '+xlMonthLabel(k);b.onclick=()=>xlMonthDetail(k);bar.prepend(b);}
+}
+function xlMonthExport(k){
+  const D=xlMonthData(k),rate=_xlRate/100,r2=n=>Math.round(n*100)/100;
+  const wb=XLSX.utils.book_new();
+  const o=[['หมายเลขคำสั่งซื้อ','วันที่สั่ง','วันที่สำเร็จ','ผู้ซื้อ','จังหวัด','ชิ้น','ยอดขาย (฿)',`ค่าคอม ${_xlRate}% (฿)`,'ค่าธรรมเนียม Shopee (฿)']];
+  D.done.forEach(x=>o.push([x.id,x.ordAt,x.doneAt,x.buyer,x.province||'',x.qty,r2(x.net),r2(x.net*rate),r2(x.fees)]));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(o),'ออร์เดอร์');
+  const l=[['หมายเลขคำสั่งซื้อ','วันที่สำเร็จ','สินค้า','ตัวเลือก','จำนวน','ยอดขาย (฿)',`ค่าคอม ${_xlRate}% (฿)`]];
+  D.lines.forEach(r=>l.push([r.id,r.doneAt,r.name,r.opt||'',r.qty-r.ret,r2(r.net),r2(r.net*rate)]));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(l),'รายการสินค้า');
+  XLSX.writeFile(wb,'Shopee_Sales_'+k+'.xlsx');
 }
 // มือถือ: เปลี่ยนตารางเป็นการ์ดทีละแถว ค่าคอม Sales แสดงตัวใหญ่เด่น
 function xlCardify(root){
