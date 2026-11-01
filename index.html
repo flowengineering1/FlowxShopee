@@ -4058,14 +4058,6 @@ function buildXlPage(){
     <div class="cc-title">📈 ยอดขายสำเร็จ & ค่าคอมรายเดือน <span style="font-size:11px;color:var(--text3);font-weight:400">(ตามวันที่ออร์เดอร์สำเร็จ)</span></div>
     <div class="ch h260"><canvas id="xlChartMonth"></canvas></div>
   </div>
-  <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
-    <button class="xl-tab-btn" id="xlTab_month" onclick="xlSetTab('month')">📅 รายเดือน</button>
-    <button class="xl-tab-btn" id="xlTab_prod" onclick="xlSetTab('prod')">📦 สินค้าขายดี</button>
-    <button class="xl-tab-btn" id="xlTab_fee" onclick="xlSetTab('fee')">💸 ค่าธรรมเนียมรายเดือน</button>
-    <button class="xl-tab-btn" id="xlTab_ord" onclick="xlSetTab('ord')">🛒 รายการออร์เดอร์</button>
-    <button class="xl-tab-btn" onclick="xlExport()" style="margin-left:auto">⬇ Export Excel</button>
-  </div>
-  <div class="cc" id="xlTabBody" style="padding:0;overflow:hidden"></div>
   ${(()=>{const F=done.reduce((t,o)=>{['comm','trans','svc','ship','voucher','fees'].forEach(k=>t[k]+=o[k]);return t;},{comm:0,trans:0,svc:0,ship:0,voucher:0,fees:0});
     const c=(l,v,sub,col)=>`<div class="fc" style="border-top:3px solid ${col}"><div class="fc-lbl">${l}</div><div class="fc-val" style="color:${col};font-size:18px">฿${fmt(v)}</div><div class="fc-sub">${sub}</div></div>`;
     const p=v=>doneSales?(v/doneSales*100).toFixed(1)+'% ของยอดขาย':'';
@@ -4078,7 +4070,16 @@ function buildXlPage(){
       ${c('โค้ดส่วนลดร้าน',F.voucher,p(F.voucher),'var(--gray)')}
       ${c('รวมค่าธรรมเนียม',F.fees,p(F.fees),'var(--red)')}
       ${c('ยอดหลังหักค่าธรรมเนียม',doneSales-F.fees,'ประมาณเงินที่ร้านได้รับ','var(--green)')}
-    </div>`;})()}`}`;
+    </div>`;})()}
+  <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+    <button class="xl-tab-btn" id="xlTab_month" onclick="xlSetTab('month')">📅 รายเดือน</button>
+    <button class="xl-tab-btn" id="xlTab_prod" onclick="xlSetTab('prod')">📦 สินค้าขายดี</button>
+    <button class="xl-tab-btn" id="xlTab_fee" onclick="xlSetTab('fee')">💸 ค่าธรรมเนียมรายเดือน</button>
+    <button class="xl-tab-btn" id="xlTab_ord" onclick="xlSetTab('ord')">🛒 รายการออร์เดอร์</button>
+    <button class="xl-tab-btn" onclick="xlExport()" style="margin-left:auto">⬇ Export Excel</button>
+  </div>
+  <div class="cc" id="xlTabBody" style="padding:0;overflow:hidden"></div>
+`}`;
 
   // drag & drop
   const dz=document.getElementById('xlDrop');
@@ -4518,11 +4519,13 @@ function renderSumTab(){
     <div class="cc" style="padding:0;overflow:hidden">${sumTable(['#','จังหวัด','ภาค','ออร์เดอร์','ลูกค้า','ยอดขาย','สัดส่วน'],D.provinces.map((p,i)=>[i+1,p.name,sumRegion(p.name),fmtN(p.orders),fmtN(p.buyers.size),sumMoney(p.sales),sumPct(p.sales,T.sales)]),{right:[3,4,5,6],h:460})}</div>`;
   } else if(_sumTab==='exp'){
     const tot=D.monthly.reduce((t,m)=>{['sales','comm','trans','svc','ship','voucher','salesComm','cogsEst','expense','net'].forEach(k=>t[k]=(t[k]||0)+m[k]);return t;},{});
-    const row=(lbl,m)=>[lbl,sumMoney(m.sales),sumMoney(m.comm),sumMoney(m.trans),sumMoney(m.svc),sumMoney(m.ship),sumMoney(m.voucher),sumMoney(m.salesComm),sumMoney(m.expense),sumMoney(m.cogsEst),`<b style="color:${m.net>=0?'var(--green)':'var(--red)'}">${sumMoney(m.net)}</b>`,sumPct(m.net,m.sales)];
+    // จำนวนเงิน + (% ของยอดขายเดือนนั้น)
+    const mp=(v,m)=>`${sumMoney(v)} <span style="font-size:11px;color:var(--text3);white-space:nowrap">(${m.sales?(v/m.sales*100).toFixed(1):'0.0'}%)</span>`;
+    const row=(lbl,m)=>[lbl,sumMoney(m.sales),mp(m.comm,m),mp(m.trans,m),mp(m.svc,m),mp(m.ship,m),mp(m.voucher,m),mp(m.salesComm,m),`<b>${mp(m.expense,m)}</b>`,mp(m.cogsEst,m),`<b style="color:${m.net>=0?'var(--green)':'var(--red)'}">${sumMoney(m.net)}</b>`,sumPct(m.net,m.sales)];
     h=`<div class="cc"><div class="cc-title">💸 ค่าใช้จ่ายแยกประเภทรายเดือน</div><div class="ch h260"><canvas id="sumChExp"></canvas></div></div>
     <div class="cc" style="padding:0;overflow:hidden">${sumTable(['เดือน','ยอดขาย','ค่าคอมมิชชั่น Shopee','Transaction Fee','ค่าบริการ','ค่าส่งที่ร้านออก','โค้ดส่วนลดร้าน',`คอม Sales ${_xlRate}%`,'รวมค่าใช้จ่าย','ต้นทุนสินค้า*','กำไรสุทธิ','%'],
       [...D.monthly.map(m=>row(xlMonthLabel(m.month),m)),row('<b>รวม</b>',tot)],{right:[1,2,3,4,5,6,7,8,9,10,11],h:520})}</div>
-    <div style="font-size:11px;color:var(--text3);line-height:1.7">ค่าคอมมิชชั่น / Transaction Fee / ค่าบริการ มาจากไฟล์ Shopee (คิดครั้งเดียวต่อออร์เดอร์) · ค่าส่งที่ร้านออก = ค่าส่งโดยประมาณ − ส่วนที่ผู้ซื้อจ่าย − ส่วนที่ Shopee ออก (+ ค่าส่งสินค้าคืน) · คอม Sales คิด ${_xlRate}% ของยอดขาย${_sumBasis==='live'?' (รวมออร์เดอร์รอยืนยัน จึงเป็นค่าคาดการณ์)':''}<br>* ต้นทุนสินค้า = ต้นทุนจริงของสินค้าที่มีข้อมูล + ประมาณส่วนที่ยังไม่มีข้อมูลด้วยสัดส่วนต้นทุนเฉลี่ย ${(T.costRatio*100).toFixed(0)}%</div>`;
+    <div style="font-size:11px;color:var(--text3);line-height:1.7">ตัวเลขในวงเล็บ (%) = สัดส่วนต่อยอดขายของเดือนนั้น · ค่าคอมมิชชั่น / Transaction Fee / ค่าบริการ มาจากไฟล์ Shopee (คิดครั้งเดียวต่อออร์เดอร์) · ค่าส่งที่ร้านออก = ค่าส่งโดยประมาณ − ส่วนที่ผู้ซื้อจ่าย − ส่วนที่ Shopee ออก (+ ค่าส่งสินค้าคืน) · คอม Sales คิด ${_xlRate}% ของยอดขาย${_sumBasis==='live'?' (รวมออร์เดอร์รอยืนยัน จึงเป็นค่าคาดการณ์)':''}<br>* ต้นทุนสินค้า = ต้นทุนจริงของสินค้าที่มีข้อมูล + ประมาณส่วนที่ยังไม่มีข้อมูลด้วยสัดส่วนต้นทุนเฉลี่ย ${(T.costRatio*100).toFixed(0)}%</div>`;
   } else if(_sumTab==='ads'){
     h=renderSumAds(D);
   } else if(_sumTab==='link'){
